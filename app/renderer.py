@@ -36,3 +36,33 @@ def render_album(image_path: str, width: int, height: int) -> Image.Image:
     y = (height - img.height) // 2
     canvas.paste(img, (x, y))
     return canvas
+
+def render_clock(width: int, height: int) -> Image.Image:
+    img = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+
+    font_big = load_font(80)
+    font_small = load_font(32)
+
+    # 時間
+    now = datetime.now()
+    time_str = now.strftime("%H:%M")
+    date_str = now.strftime("%Y-%m-%d (%a)")
+
+    # 時鐘置中
+    bbox_time = draw.textbbox((0, 0), time_str, font=font_big)
+    bbox_date = draw.textbbox((0, 0), date_str, font=font_small)
+
+    w_time = bbox_time[2] - bbox_time[0]
+    h_time = bbox_time[3] - bbox_time[1]
+
+    w_date = bbox_date[2] - bbox_date[0]
+    h_date = bbox_date[3] - bbox_date[1]
+
+    draw.text(((width - w_time) // 2, height // 2 - 60),
+              time_str, fill="black", font=font_big)
+
+    draw.text(((width - w_date) // 2, height // 2 + 10),
+              date_str, fill="black", font=font_small)
+
+    return img

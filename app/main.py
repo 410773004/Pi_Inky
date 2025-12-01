@@ -6,7 +6,9 @@ from PIL import Image
 from .display_base import BaseDisplay
 from .display_waveshare import WaveshareEPDDisplay
 from .display_mock import MockEPDDisplay
-from .renderer import render_album
+from .renderer import render_album,render_clock
+from .clock_loop import run_clock
+
 
 
 def create_display(mode: str) -> BaseDisplay:
@@ -23,8 +25,8 @@ def create_display(mode: str) -> BaseDisplay:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["real", "mock"],
-                        default=os.environ.get("EPD_MODE", "mock"),
-                        help="real=樹莓派電子紙, mock=模擬器")
+                        default=os.environ.get("EPD_MODE", "mock"))
+    parser.add_argument("--screen", choices=["album", "clock"], default="clock")
     args = parser.parse_args()
 
     display = create_display(args.mode)
@@ -40,13 +42,13 @@ def main():
         assert isinstance(display, MockEPDDisplay)
         width, height = display.size
 
-    img = render_album("images/confuse.png",width, height)
-
-    # 顯示
-    display.clear()
-    display.show_image(img)
-    display.sleep()
-
+    if args.screen == "album":
+        img = render_album("assets/images/confuse.png", width, height)
+        display.clear()
+        display.show_image(img)
+        display.sleep()
+    elif args.screen == "clock":
+        run_clock(display, width, height)
 
 if __name__ == "__main__":
     main()
