@@ -1,0 +1,16 @@
+# Core
+Flask
+requests
+Pillow
+python-dotenv
+
+# PC e-paper simulator
+pygame
+
+# Scheduler
+schedule
+
+# Optional advanced image processing
+opencv-python
+numpy
+
