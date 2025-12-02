@@ -1,54 +1,41 @@
 # app/main.py
-import os
 import argparse
-from PIL import Image
-
-from .display_base import BaseDisplay
+import os
+from flask import Flask
 from .display_waveshare import WaveshareEPDDisplay
 from .display_mock import MockEPDDisplay
-from .renderer import render_album,render_clock
-from .clock_loop import run_clock
+from .server import bp, init_routes
 
-
-
-def create_display(mode: str) -> BaseDisplay:
-    mode = mode.lower()
+def create_display(mode):
     if mode == "real":
         return WaveshareEPDDisplay(rotation=0)
-    elif mode == "mock":
-        # 解析度可以改成你螢幕的，或直接看 datasheet / epd.width/height
-        return MockEPDDisplay(size=(800, 480), rotation=0)
     else:
-        raise ValueError(f"Unknown mode: {mode}")
-
+        return MockEPDDisplay(size=(800, 480), rotation=0)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["real", "mock"],
-                        default=os.environ.get("EPD_MODE", "mock"))
-    parser.add_argument("--screen", choices=["album", "clock"], default="clock")
+    parser.add_argument("--mode", choices=["real", "mock"],default="mock")
+    parser.add_argument("--port", type=int, default=5000)
     args = parser.parse_args()
 
     display = create_display(args.mode)
     display.init()
 
-    # 決定螢幕尺寸
-    if args.mode == "real":
-        # 真機用 epd 的尺寸
-        assert isinstance(display, WaveshareEPDDisplay)
-        width, height = display.size
-    else:
-        # 模擬用設定好的 size
-        assert isinstance(display, MockEPDDisplay)
-        width, height = display.size
+    width, height = display.size
+    print("[MAIN] Display:", width, "x", height)
 
-    if args.screen == "album":
-        img = render_album("assets/images/confuse.png", width, height)
-        display.clear()
-        display.show_image(img)
-        display.sleep()
-    elif args.screen == "clock":
-        run_clock(display, width, height)
+    # 啟動 Flask
+    app = Flask(__name__)
+
+    # 把 display 注入 Flask 路由
+    init_routes(display, width, height)
+
+    # 註冊 Blueprint（路由）
+    app.register_blueprint(bp)
+
+    # 啟動 Web server
+    app.run(host="0.0.0.0", port=args.port)
+
 
 if __name__ == "__main__":
     main()

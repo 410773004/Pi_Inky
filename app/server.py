@@ -1,112 +1,119 @@
 # app/server.py
-from flask import Flask, request, render_template_string
+from flask import Blueprint, request, jsonify, redirect, url_for ,send_from_directory
 from pathlib import Path
-import argparse
 import os
-
-from PIL import Image
 from .renderer import render_album
-from .display_waveshare import WaveshareEPDDisplay
-from .display_mock import MockEPDDisplay
+from threading import Event
+import threading
+from .clock_loop import run_clock
 
+bp = Blueprint("web", __name__)
 
-# -----------------------
-# 建立 Flask App
-# -----------------------
-app = Flask(__name__)
-
+# 專案目錄
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+# 將由 main.py 注入
+display = None
+disp_width = None
+disp_height = None
 
-# -----------------------
-# 顯示器選擇
-# -----------------------
-def create_display(mode: str):
-    if mode == "real":
-        print("[Server] 使用 REAL 電子紙")
-        return WaveshareEPDDisplay(rotation=0)
-    else:
-        print("[Server] 使用 MOCK 模擬器")
-        return MockEPDDisplay(size=(800, 480))
+clock_stop_event = Event()
+clock_thread = None
 
 
-# -----------------------
-# HTML 頁面
-# -----------------------
-HTML_PAGE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Pi 電子紙上傳</title>
-</head>
-<body>
-    <h1>上傳圖片到電子紙</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="image" accept="image/*">
-        <button type="submit">上傳並顯示</button>
-    </form>
-</body>
-</html>
+def init_routes(_display, _w, _h):
+    global display, disp_width, disp_height
+    display = _display
+    disp_width = _w
+    disp_height = _h
+
+
+# ------------------------------------------------------
+# 首頁（網頁 UI）
+# ------------------------------------------------------
+HTML = """
+<h1>📟 Pi 電子紙控制面板</h1>
+
+<h2>切換模式</h2>
+<a href="/mode/clock">📅 時鐘模式</a><br>
+<a href="/mode/album">🖼 相簿模式（上傳圖片）</a><br><br>
+
+<h2>相簿上傳</h2>
+<form action="/upload" method="post" enctype="multipart/form-data">
+  <input type="file" name="image">
+  <button type="submit">上傳圖片並顯示</button>
+</form>
+
+<h2>相簿列表</h2>
+<a href="/album">查看相簿 JSON</a>
 """
 
-
-@app.route("/")
+@bp.route("/")
 def index():
-    return render_template_string(HTML_PAGE)
+    return HTML
 
 
-# -----------------------
-# 上傳圖片路由
-# -----------------------
-@app.route("/upload", methods=["POST"])
+# ------------------------------------------------------
+# 模式切換
+# ------------------------------------------------------
+@bp.route("/mode/clock")
+def mode_clock():
+    global clock_thread
+
+    # 停止現有時鐘
+    clock_stop_event.set()
+
+    clock_stop_event.clear()
+    clock_thread = threading.Thread(
+        target=run_clock,
+        args=(display, disp_width, disp_height, clock_stop_event),
+        daemon=True
+    )
+    clock_thread.start()
+
+    return redirect(url_for("web.index"))
+
+
+@bp.route("/mode/album")
+def mode_album():
+    # 停止時鐘
+    clock_stop_event.set()
+    return redirect(url_for("web.index"))
+
+
+# ------------------------------------------------------
+# 上傳相片
+# ------------------------------------------------------
+@bp.route("/upload", methods=["POST"])
 def upload():
     file = request.files.get("image")
-
     if not file:
         return "沒有收到圖片", 400
 
-    save_path = UPLOAD_DIR / "latest.jpg"
+    filename = file.filename
+    save_path = UPLOAD_DIR / filename
     file.save(save_path)
 
-    print(f"[Server] 已收到圖片：{save_path}")
+    img = render_album(str(save_path), disp_width, disp_height)
 
-    # 建立顯示圖片
-    img = render_album(str(save_path), app.width, app.height)
+    clock_stop_event.set()
+    display.clear()
+    display.show_image(img)
+    display.sleep()
 
-    # 推到 display
-    app.display.clear()
-    app.display.show_image(img)
-    app.display.sleep()
-
-    return f"已顯示！（mode={app.mode}）"
+    return redirect(url_for("web.index"))
 
 
-# -----------------------
-# 主程式入口
-# -----------------------
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["real", "mock"],
-                        default=os.environ.get("EPD_MODE", "mock"))
-    parser.add_argument("--port", type=int, default=5000)
-    args = parser.parse_args()
-
-    app.mode = args.mode
-    app.display = create_display(args.mode)
-    app.display.init()
-
-    # 取得螢幕尺寸
-    app.width, app.height = app.display.size
-
-    print(f"[Server] Web 伺服器啟動中，mode={args.mode}")
-    print(f"[Server] 螢幕尺寸：{app.width} x {app.height}")
-
-    # 啟動 web server
-    app.run(host="0.0.0.0", port=args.port)
+# ------------------------------------------------------
+# 相簿列表
+# ------------------------------------------------------
+@bp.route("/album")
+def album():
+    return jsonify(os.listdir(UPLOAD_DIR))
 
 
-if __name__ == "__main__":
-    main()
+@bp.route("/image/<filename>")
+def get_image(filename):
+    return send_from_directory(UPLOAD_DIR, filename)
