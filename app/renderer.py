@@ -2,13 +2,19 @@
 from datetime import datetime
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
+import os
 
 
-def load_font(size: int = 28) -> ImageFont.FreeTypeFont:
-    # 你可以放自己的中文字型，先簡單用內建
+
+def load_font(size: int = 28):
+    font_file = os.path.join(
+        os.path.dirname(__file__), "..", "fonts", "DejaVuSans.ttf"
+    )
+
     try:
-        return ImageFont.truetype("arial.ttf", size)
-    except:
+        return ImageFont.truetype(font_file, size)
+    except Exception as e:
+        print("Font load failed:", e)
         return ImageFont.load_default()
 
 
@@ -41,8 +47,8 @@ def render_clock(width: int, height: int) -> Image.Image:
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
-    font_big = load_font(160)
-    font_small = load_font(50)
+    font_big = load_font(80)
+    font_small = load_font(32)
 
     # 時間
     now = datetime.now()
@@ -59,9 +65,6 @@ def render_clock(width: int, height: int) -> Image.Image:
     w_date = bbox_date[2] - bbox_date[0]
     h_date = bbox_date[3] - bbox_date[1]
 
-    # 整體畫面置中策略：
-    #   時間放在中線稍上
-    #   日期放在中線稍下
     center_y = height // 2
 
     draw.text(
