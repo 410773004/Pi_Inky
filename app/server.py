@@ -63,7 +63,9 @@ def mode_clock():
     global clock_thread
 
     # 停止現有時鐘
-    clock_stop_event.set()
+    if clock_thread and clock_thread.is_alive():
+        clock_stop_event.set()
+        clock_thread.join()
 
     clock_stop_event.clear()
     clock_thread = threading.Thread(
@@ -78,8 +80,13 @@ def mode_clock():
 
 @bp.route("/mode/album")
 def mode_album():
-    # 停止時鐘
-    clock_stop_event.set()
+    global clock_thread
+
+    # 停止現有時鐘
+    if clock_thread and clock_thread.is_alive():
+        clock_stop_event.set()
+        clock_thread.join()
+
     return redirect(url_for("web.index"))
 
 
