@@ -41,8 +41,8 @@ def render_clock(width: int, height: int) -> Image.Image:
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
-    font_big = load_font(80)
-    font_small = load_font(32)
+    font_big = load_font(160)
+    font_small = load_font(50)
 
     # 時間
     now = datetime.now()
@@ -59,10 +59,23 @@ def render_clock(width: int, height: int) -> Image.Image:
     w_date = bbox_date[2] - bbox_date[0]
     h_date = bbox_date[3] - bbox_date[1]
 
-    draw.text(((width - w_time) // 2, height // 2 - 60),
-              time_str, fill="black", font=font_big)
+    # 整體畫面置中策略：
+    #   時間放在中線稍上
+    #   日期放在中線稍下
+    center_y = height // 2
 
-    draw.text(((width - w_date) // 2, height // 2 + 10),
-              date_str, fill="black", font=font_small)
+    draw.text(
+        ((width - w_time) // 2, center_y - h_time - 20),
+        time_str,
+        fill="black",
+        font=font_big
+    )
+
+    draw.text(
+        ((width - w_date) // 2, center_y + 20),
+        date_str,
+        fill="black",
+        font=font_small
+    )
 
     return img
