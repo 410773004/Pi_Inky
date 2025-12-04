@@ -1,7 +1,7 @@
 # app/renderer.py
 from datetime import datetime
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 import os
 
 
@@ -16,6 +16,54 @@ def load_font(size: int = 28):
     except Exception as e:
         print("Font load failed:", e)
         return ImageFont.load_default()
+
+def optimize_image(img: Image.Image) -> Image.Image:
+    """
+    直接接收一張 Image 物件並優化，使其適合 7.3 六色 e-paper。
+    """
+
+    TARGET_W, TARGET_H = 800, 480
+
+    # Step 1：保持比例縮放
+    img = img.copy()
+    img.thumbnail((TARGET_W, TARGET_H))
+
+    # Step 2：對比提升
+    img = ImageEnhance.Contrast(img).enhance(1.35)
+
+    # Step 3：亮度微調
+    img = ImageEnhance.Brightness(img).enhance(1.1)
+
+    # Step 4：銳化
+    img = img.filter(ImageFilter.SHARPEN)
+
+    # Step 5：降低彩度
+    img = ImageEnhance.Color(img).enhance(0.55)
+
+    # Step 6：六色量化
+    PALETTE = [
+        (255, 255, 255),  # white
+        (0, 0, 0),        # black
+        (255, 0, 0),      # red
+        (255, 255, 0),    # yellow
+        (0, 255, 0),      # green
+        (0, 0, 255)       # blue
+    ]
+
+    palette_img = Image.new('P', (1, 1))
+    flat_palette = sum(PALETTE, ())
+    palette_img.putpalette(flat_palette * 42)
+
+    img = img.quantize(palette=palette_img, dither=Image.FLOYDSTEINBERG).convert("RGB")
+
+    # Step 7：置中畫布
+    canvas = Image.new("RGB", (TARGET_W, TARGET_H), "white")
+    x = (TARGET_W - img.width) // 2
+    y = (TARGET_H - img.height) // 2
+    canvas.paste(img, (x, y))
+
+    return canvas
+
 
 
 def render_album(image_path: str, width: int, height: int) -> Image.Image:
@@ -41,6 +89,7 @@ def render_album(image_path: str, width: int, height: int) -> Image.Image:
     x = (width - img.width) // 2
     y = (height - img.height) // 2
     canvas.paste(img, (x, y))
+    canvas = optimize_image(canvas)
     return canvas
 
 def render_clock(width: int, height: int) -> Image.Image:
