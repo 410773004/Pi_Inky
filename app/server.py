@@ -108,7 +108,6 @@ def upload():
     clock_stop_event.set()
     display.clear()
     display.show_image(img)
-    display.sleep()
 
     return redirect(url_for("web.index"))
 
