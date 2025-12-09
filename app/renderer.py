@@ -8,7 +8,7 @@ import os
 
 def load_font(size: int = 28):
     font_file = os.path.join(
-        os.path.dirname(__file__), "..", "fonts", "DejaVuSans.ttf"
+        os.path.dirname(__file__), "..", "fonts", "NotoSansTC-VariableFont_wght.ttf"
     )
 
     try:
@@ -29,16 +29,16 @@ def optimize_image(img: Image.Image) -> Image.Image:
     img.thumbnail((TARGET_W, TARGET_H))
 
     # Step 2：對比提升
-    img = ImageEnhance.Contrast(img).enhance(1.35)
+    img = ImageEnhance.Contrast(img).enhance(1.1)
 
     # Step 3：亮度微調
-    img = ImageEnhance.Brightness(img).enhance(1.1)
+    img = ImageEnhance.Brightness(img).enhance(1.0)
 
     # Step 4：銳化
     img = img.filter(ImageFilter.SHARPEN)
 
     # Step 5：降低彩度
-    img = ImageEnhance.Color(img).enhance(0.55)
+    img = ImageEnhance.Color(img).enhance(0.9)
 
     # Step 6：六色量化
     PALETTE = [

@@ -22,6 +22,9 @@ disp_height = None
 clock_stop_event = Event()
 clock_thread = None
 
+current_mode = "none"
+
+
 
 def init_routes(_display, _w, _h):
     global display, disp_width, disp_height
@@ -39,6 +42,7 @@ HTML = """
 <h2>切換模式</h2>
 <a href="/mode/clock">📅 時鐘模式</a><br>
 <a href="/mode/album">🖼 相簿模式（上傳圖片）</a><br><br>
+<a href="/mode/message">🖼 留言模式）</a><br><br>
 
 <h2>相簿上傳</h2>
 <form action="/upload" method="post" enctype="multipart/form-data">
@@ -52,6 +56,11 @@ HTML = """
 
 @bp.route("/")
 def index():
+    mode_info = f"<p>目前模式：{current_mode}</p>"
+    if current_mode == "message":
+        mode_info += '<a href="/message">➡ 前往留言頁面</a><br><br>'
+    return HTML + mode_info
+
     return HTML
 
 
@@ -123,3 +132,63 @@ def album():
 @bp.route("/image/<filename>")
 def get_image(filename):
     return send_from_directory(UPLOAD_DIR, filename)
+
+@bp.route("/mode/message")
+def mode_message():
+    global current_mode
+
+    # 停時鐘（你原本已有）
+    if clock_thread and clock_thread.is_alive():
+        clock_stop_event.set()
+        clock_thread.join()
+
+    current_mode = "message"   # ← ★ 新增這行，啟用留言模式
+
+    return redirect(url_for("web.index"))
+
+
+@bp.route("/message")
+def message_page():
+    return """
+    <h2>留言模式</h2>
+    <form action='/api/send_message' method='POST'>
+        <textarea name='text' rows='4' cols='40'></textarea><br><br>
+        <button type='submit'>送出</button>
+    </form>
+    <br>
+    <a href="/">回首頁</a>
+    """
+
+from .renderer import load_font
+from PIL import Image, ImageDraw
+
+@bp.route("/api/send_message", methods=["POST"])
+def send_message():
+    global disp_width, disp_height, display
+
+    text = request.form.get("text", "").strip()
+    if not text:
+        return "訊息不能為空", 400
+
+    img = Image.new("RGB", (disp_width, disp_height), "black")
+    draw = ImageDraw.Draw(img)
+    font = load_font(40)
+
+    # 使用 textbbox 取得寬高（新版 Pillow 用法）
+    bbox = draw.textbbox((0, 0), text, font=font)
+    w = bbox[2] - bbox[0]
+    h = bbox[3] - bbox[1]
+
+    # 置中
+    draw.text(
+        ((disp_width - w) // 2, (disp_height - h) // 2),
+        text,
+        fill="white",
+        font=font
+    )
+
+    display.clear()
+    display.show_image(img)
+
+    return redirect("/message")
+
